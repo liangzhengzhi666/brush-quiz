@@ -235,6 +235,47 @@ window.App = window.App || {};
     return h;
   }
 
+  function renderAiBox(q) {
+    if (!A.ai) return '';
+    var st = A.practice.state();
+    var exp = st.aiExp && st.aiExp[q.id] !== undefined ? st.aiExp[q.id] : store.getExplanation(st.bankId, q.id);
+    if (st.aiBusy && st.aiBusy[q.id]) {
+      return '<div class="ai-box"><span class="small muted">✨ AI 正在生成解析，约需 1~3 秒…</span></div>';
+    }
+    if (exp) {
+      return '<div class="ai-box"><div class="ai-title">✨ AI 解析 <span class="small muted">（已缓存，再次查看不消耗额度）</span></div>' +
+        '<div class="ai-text">' + util.esc(exp).replace(/\n/g, '<br>') + '</div>' +
+        '<button class="btn sm ghost" data-act="p-ai" style="margin-top:6px">重新生成</button></div>';
+    }
+    return '<div class="ai-box"><button class="btn sm" data-act="p-ai">✨ AI 解析</button>' +
+      '<span class="small muted" style="margin-left:8px">调用 AI 生成本题解析（需在「数据」页配置密钥）</span></div>';
+  }
+
+  /* AI 解析交互：点击/完成后调用，由 app 层在 promise 结束后重渲染 */
+  practice.handleAi = function (q) {
+    var st = A.practice.state();
+    if (!st.aiBusy) st.aiBusy = {};
+    if (st.aiBusy[q.id]) return;
+    if (!A.ai.configured()) {
+      A.app.openAiSettings();
+      return;
+    }
+    st.aiBusy[q.id] = true;
+    st.aiExp = st.aiExp || {};
+    delete st.aiExp[q.id];
+    A.app.render();
+    A.ai.explain(q).then(function (text) {
+      store.setExplanation(st.bankId, q.id, text);
+      delete st.aiBusy[q.id];
+      st.aiExp[q.id] = text;
+      A.app.render();
+    }).catch(function (e) {
+      delete st.aiBusy[q.id];
+      util.toast('AI 解析失败：' + e.message, 'err');
+      A.app.render();
+    });
+  };
+
   function renderAnswerBox(q, graded) {
     var ok = graded ? gradeOf(q) : null;
     var cls = 'result-box';
@@ -263,6 +304,9 @@ window.App = window.App || {};
     }
 
     if (q.analysis) h += '<div class="analysis">解析：' + q.analysis + '</div>';
+
+    /* AI 解析区 */
+    h += renderAiBox(q);
 
     if (q.type === 'short' && !st.selfOk[q.id]) {
       h += '<div class="run-actions" style="margin-top:10px">' +
@@ -370,6 +414,10 @@ window.App = window.App || {};
       case 'p-reveal':
         st.revealed[q.id] = true;
         A.app.render();
+        return true;
+
+      case 'p-ai':
+        practice.handleAi(q);
         return true;
 
       case 'p-self': {

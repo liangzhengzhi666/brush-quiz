@@ -167,6 +167,21 @@ window.App = window.App || {};
     return next;
   };
 
+  /* ---------- AI 解析缓存（存记录的 exp 字段，随导出/导入迁移） ---------- */
+  store.getExplanation = function (bankId, qid) {
+    var r = store.getRec(bankId, qid);
+    return (r && r.exp) ? r.exp : null;
+  };
+
+  store.setExplanation = function (bankId, qid, text) {
+    var recs = store.records(bankId);
+    var r = recs[qid] || { c: 0, w: 0 };
+    r.exp = text;
+    r.expAt = Date.now();
+    recs[qid] = r;
+    store.save();
+  };
+
   /* ---------- 派生列表 ---------- */
   store.wrongList = function (bank) {
     var recs = store.records(bank.id);
@@ -341,6 +356,7 @@ window.App = window.App || {};
           if (incoming.time && (!mine.time || incoming.time > mine.time)) { mine.last = incoming.last; mine.time = incoming.time; }
           if (incoming.fav) mine.fav = true;
           if (incoming.ok) mine.ok = true;
+          if (incoming.exp && !mine.exp) { mine.exp = incoming.exp; mine.expAt = incoming.expAt; }
         });
       });
     }

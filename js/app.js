@@ -6,6 +6,41 @@ window.App = window.App || {};
   var app = {};
   var view = { chapter: {}, search: {} };
   var curRoute = null;
+  var DEFAULT_AI_URL = 'https://open.bigmodel.cn/api/paas/v4/chat/completions';
+
+  /* AI 设置弹窗（做题时未配密钥也会弹出） */
+  app.openAiSettings = function () {
+    var cfg = A.ai ? A.ai.getConfig() : { url: DEFAULT_AI_URL, model: 'glm-4-flash', key: '' };
+    util.modal({
+      title: '✨ AI 解析设置',
+      html: '<div class="small muted" style="margin-bottom:10px">推荐智谱开放平台（bigmodel.cn）注册并创建 API Key，glm-4-flash 模型免费。密钥只保存在本机浏览器。</div>' +
+        '<div class="field"><label>接口地址</label><input id="aiUrl" type="text" value="' + util.esc(cfg.url) + '"></div>' +
+        '<div class="field"><label>模型</label><input id="aiModel" type="text" value="' + util.esc(cfg.model) + '"></div>' +
+        '<div class="field" style="margin:0"><label>API 密钥</label><input id="aiKey" type="password" value="' + util.esc(cfg.key) + '" placeholder="粘贴你的 API Key"></div>',
+      okText: '保存并测试',
+      onOk: function (mask) {
+        saveAiConfig(mask, function (ok, msg) {
+          util.toast(ok ? 'AI 连接正常，配置已保存' : ('连接失败：' + msg + '（配置已保存）'), ok ? 'ok' : 'err');
+        });
+      }
+    });
+  };
+
+  function saveAiConfig(mask, after) {
+    var url = mask.querySelector('#aiUrl').value;
+    var model = mask.querySelector('#aiModel').value;
+    var key = mask.querySelector('#aiKey').value;
+    A.ai.saveConfig(url, model, key);
+    if (!A.ai.configured()) {
+      if (after) after(false, '密钥为空');
+      return;
+    }
+    A.ai.test().then(function (reply) {
+      if (after) after(true, reply);
+    }).catch(function (e) {
+      if (after) after(false, e.message);
+    });
+  }
 
   /* ---------- 路由解析 ---------- */
   function parseHash() {
@@ -283,6 +318,7 @@ window.App = window.App || {};
     var h = '<div class="page-head"><h1>错题本</h1><p>' + util.esc(bank.name) + ' · 共 ' + list.length + ' 道待重练错题</p></div>';
     h += '<div class="btn-row" style="margin-bottom:14px">' +
       '<a class="btn primary" href="#/practice/' + bank.id + '?mode=wrong">开始重练</a>' +
+      '<button class="btn" data-act="w-ai-all" data-id="' + bank.id + '">✨ AI 解析全部错题</button>' +
       '<a class="btn" href="#/bank/' + bank.id + '">返回题库</a></div>';
 
     if (!list.length) {
@@ -362,6 +398,21 @@ window.App = window.App || {};
       '<div class="stat"><div class="num">' + d.exams.length + '</div><div class="lbl">考试记录</div></div>' +
       '<div class="stat"><div class="num">' + util.bytes(used) + '</div><div class="lbl">占用空间</div></div>' +
       '</div>';
+
+    h += '<div class="card"><div class="card-title">✨ AI 解析设置</div>';
+    if (A.ai) {
+      var cfg = A.ai.getConfig();
+      h += '<div class="small muted" style="margin-bottom:10px">做题时可一键调用 AI 生成本题解析。密钥只保存在本机浏览器，不会上传；调用时题目内容会发送给你选择的服务商。' +
+        (cfg.url.indexOf('bigmodel') >= 0 ? '推荐智谱开放平台（bigmodel.cn）的免费模型 glm-4-flash。' : '') + '</div>';
+      h += '<div class="grid2">' +
+        '<div class="field"><label for="aiUrl">接口地址</label><input id="aiUrl" type="text" value="' + util.esc(cfg.url) + '" placeholder="' + DEFAULT_AI_URL + '"></div>' +
+        '<div class="field"><label for="aiModel">模型</label><input id="aiModel" type="text" value="' + util.esc(cfg.model) + '" placeholder="glm-4-flash"></div>' +
+        '</div>';
+      h += '<div class="field"><label for="aiKey">API 密钥</label><input id="aiKey" type="password" value="' + util.esc(cfg.key) + '" placeholder="粘贴你的 API Key"></div>';
+      h += '<div class="btn-row"><button class="btn primary" data-act="ai-save">保存</button>' +
+        '<button class="btn" data-act="ai-test">保存并测试连接</button></div>';
+    }
+    h += '</div>';
 
     h += '<div class="card"><div class="card-title">导出备份</div>';
     h += '<div class="small muted" style="margin-bottom:10px">导出包含全部题库、答题记录与考试成绩的 JSON 文件。换设备时在本页导入即可恢复。</div>';
@@ -578,6 +629,51 @@ window.App = window.App || {};
         store.setFav(el.getAttribute('data-bank'), el.getAttribute('data-qid'), false);
         util.toast('已取消收藏');
         render();
+        break;
+      }
+
+      /* AI 设置 */
+      case 'ai-save': {
+        var mask0 = el.closest('.modal');
+        var scope0 = mask0 || document;
+        saveAiConfig(scope0, function (ok, msg) {
+          util.toast(ok ? '已保存并连接正常' : ('已保存，但连接失败：' + msg), ok ? 'ok' : 'err');
+          if (!mask0) render();
+        });
+        break;
+      }
+      case 'ai-test': {
+        var mask1 = el.closest('.modal');
+        var scope1 = mask1 || document;
+        saveAiConfig(scope1, function (ok, msg) {
+          util.toast(ok ? '连接正常：' + msg : '连接失败：' + msg, ok ? 'ok' : 'err');
+        });
+        break;
+      }
+
+      /* 错题批量 AI 解析 */
+      case 'w-ai-all': {
+        var wb = store.getBank(el.getAttribute('data-id'));
+        if (!wb) break;
+        var wl = store.wrongList(wb);
+        if (!wl.length) { util.toast('当前没有错题'); break; }
+        if (!A.ai.configured()) { app.openAiSettings(); break; }
+        el.disabled = true;
+        var doneN = 0, failN = 0;
+        (function next(i) {
+          if (i >= wl.length) {
+            util.toast('AI 解析完成：成功 ' + (doneN - failN) + ' 道' + (failN ? '，失败 ' + failN + ' 道' : ''), failN ? 'err' : 'ok');
+            render();
+            return;
+          }
+          util.toast('AI 解析中 ' + (i + 1) + '/' + wl.length + ' …');
+          A.ai.explain(wl[i]).then(function (text) {
+            store.setExplanation(wb.id, wl[i].id, text);
+            doneN++;
+          }).catch(function () { failN++; doneN++; }).then(function () {
+            A.ai.sleep(300).then(function () { next(i + 1); });
+          });
+        })(0);
         break;
       }
 

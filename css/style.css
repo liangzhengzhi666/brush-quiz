@@ -247,6 +247,15 @@ textarea{resize:vertical;min-height:76px;line-height:1.6}
 .kw-hit{color:var(--green);font-weight:600}
 .kw-miss{color:var(--red);font-weight:600}
 
+/* AI 解析区 */
+.ai-box{
+  margin-top:10px;padding:10px 12px;border-radius:var(--radius-sm);
+  border:1px dashed color-mix(in srgb,var(--primary) 40%,var(--border));
+  background:color-mix(in srgb,var(--primary-weak) 55%,transparent);
+}
+.ai-box .ai-title{font-weight:700;font-size:13.5px;color:var(--primary);margin-bottom:5px;display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+.ai-box .ai-text{font-size:14px;line-height:1.75;word-break:break-word}
+
 .run-actions{display:flex;gap:10px;margin-top:16px;flex-wrap:wrap}
 .run-actions .btn{flex:1;min-width:96px}
 
