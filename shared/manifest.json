@@ -1,0 +1,10 @@
+{
+  "banks": [
+    {
+      "file": "banks/新中国史.json",
+      "name": "新中国史章节测验题目与答案",
+      "sharedId": "xinzhongguoshi-ceping-v1",
+      "count": 236
+    }
+  ]
+}
