@@ -5,6 +5,12 @@
       "name": "新中国史章节测验题目与答案",
       "sharedId": "xinzhongguoshi-ceping-v1",
       "count": 236
+    },
+    {
+      "file": "banks/园林艺术概论.json",
+      "name": "园林艺术概论课后习题",
+      "sharedId": "这里填JSON文件里的sharedId值",
+      "count": 255
     }
   ]
 }
